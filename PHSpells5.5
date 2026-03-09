@@ -5,14 +5,16 @@ function importPHSpells() {
   const data = json.spell; 
 
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  sheet.clear();
+  
+  // We clear only the data area to preserve any specific sheet-wide formatting
+  sheet.clearContents();
 
-  // Headers including Material Details
-  const headers = ["Name", "Level", "School", "Casting Time", "Range", "Duration", "Components", "Material Details", "Description"];
+  // Headers - Added "Learned" as the first column
+  const headers = ["Learned", "Name", "Level", "School", "Casting Time", "Range", "Duration", "Components", "Material Details", "Description"];
   sheet.appendRow(headers);
 
   const rows = data.map(spell => {
-    // 1. Casting Time, Range, and Duration (Standard Logic)
+    // 1. Core Mechanics
     const time = spell.time ? `${spell.time[0].number} ${spell.time[0].unit}` : "N/A";
     
     let range = "Special";
@@ -31,37 +33,31 @@ function importPHSpells() {
       }
     }
 
-    // 2. Components (V, S, M)
+    // 2. Components & Materials
     const comps = spell.components ? Object.keys(spell.components).join(", ").toUpperCase() : "NONE";
-
-    // 3. MATERIAL DETAILS (Cost & Consumption)
     let materialDetails = "";
     if (spell.components && spell.components.m) {
-      // If it's a simple string
-      if (typeof spell.components.m === 'string') {
-        materialDetails = spell.components.m;
-      } 
-      // If it's a complex object (has cost/consume info)
-      else if (typeof spell.components.m === 'object') {
-        materialDetails = spell.components.m.text || "";
-        if (spell.components.m.consume) {
-          materialDetails += " (CONSUMED)";
-        }
-      }
+      materialDetails = typeof spell.components.m === 'object' ? (spell.components.m.text || "") : spell.components.m;
+      if (spell.components.m.consume) materialDetails += " (CONSUMED)";
     }
 
-    // 4. Clean Description
+    // 3. Clean Description
     let desc = spell.entries ? spell.entries.join("\n\n") : "";
     desc = desc.replace(/\{@[a-z]+ ([^}]+)\}/g, '$1'); 
 
-    return [spell.name, spell.level, spell.school, time, range, duration, comps, materialDetails, desc];
+    // Return the row, leaving the first index empty for the checkbox
+    return ["", spell.name, spell.level, spell.school, time, range, duration, comps, materialDetails, desc];
   });
 
-  sheet.getRange(2, 1, rows.length, 9).setValues(rows);
+  sheet.getRange(2, 1, rows.length, 10).setValues(rows);
   
-  // Sanguine Aesthetic Formatting
-  sheet.getRange(1, 1, 1, 9).setFontWeight("bold").setBackground("#4C0000").setFontColor("#FFFFFF");
-  sheet.setColumnWidth(8, 250); // Material Column
-  sheet.setColumnWidth(9, 500); // Description Column
-  sheet.getRange(2, 8, sheet.getLastRow() - 1, 2).setWrap(true);
+  // Apply Checkboxes to Column A
+  const checkboxRange = sheet.getRange(2, 1, rows.length, 1);
+  checkboxRange.insertCheckboxes();
+
+  // Aesthetic Formatting
+  sheet.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground("#4C0000").setFontColor("#FFFFFF");
+  sheet.setColumnWidth(1, 70);   // Checkbox column width
+  sheet.setColumnWidth(10, 500); // Description column width
+  sheet.getRange(2, 10, sheet.getLastRow() - 1, 1).setWrap(true);
 }
