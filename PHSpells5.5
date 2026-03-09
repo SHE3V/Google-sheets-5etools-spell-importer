@@ -1,0 +1,67 @@
+function importPHSpells() {
+  const url = "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/refs/heads/main/data/spells/spells-phb.json";
+  const response = UrlFetchApp.fetch(url);
+  const json = JSON.parse(response.getContentText());
+  const data = json.spell; 
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  sheet.clear();
+
+  // Headers including Material Details
+  const headers = ["Name", "Level", "School", "Casting Time", "Range", "Duration", "Components", "Material Details", "Description"];
+  sheet.appendRow(headers);
+
+  const rows = data.map(spell => {
+    // 1. Casting Time, Range, and Duration (Standard Logic)
+    const time = spell.time ? `${spell.time[0].number} ${spell.time[0].unit}` : "N/A";
+    
+    let range = "Special";
+    if (spell.range) {
+      if (spell.range.type === "self") range = "Self";
+      else if (spell.range.distance) range = `${spell.range.distance.amount} ${spell.range.distance.type}`;
+      else range = spell.range.type;
+    }
+
+    let duration = "Instantaneous";
+    if (spell.duration && spell.duration[0]) {
+      const d = spell.duration[0];
+      if (d.type !== "instant") {
+        duration = d.amount ? `${d.amount} ${d.unit}` : d.type;
+        if (d.concentration) duration = "Conc., " + duration;
+      }
+    }
+
+    // 2. Components (V, S, M)
+    const comps = spell.components ? Object.keys(spell.components).join(", ").toUpperCase() : "NONE";
+
+    // 3. MATERIAL DETAILS (Cost & Consumption)
+    let materialDetails = "";
+    if (spell.components && spell.components.m) {
+      // If it's a simple string
+      if (typeof spell.components.m === 'string') {
+        materialDetails = spell.components.m;
+      } 
+      // If it's a complex object (has cost/consume info)
+      else if (typeof spell.components.m === 'object') {
+        materialDetails = spell.components.m.text || "";
+        if (spell.components.m.consume) {
+          materialDetails += " (CONSUMED)";
+        }
+      }
+    }
+
+    // 4. Clean Description
+    let desc = spell.entries ? spell.entries.join("\n\n") : "";
+    desc = desc.replace(/\{@[a-z]+ ([^}]+)\}/g, '$1'); 
+
+    return [spell.name, spell.level, spell.school, time, range, duration, comps, materialDetails, desc];
+  });
+
+  sheet.getRange(2, 1, rows.length, 9).setValues(rows);
+  
+  // Sanguine Aesthetic Formatting
+  sheet.getRange(1, 1, 1, 9).setFontWeight("bold").setBackground("#4C0000").setFontColor("#FFFFFF");
+  sheet.setColumnWidth(8, 250); // Material Column
+  sheet.setColumnWidth(9, 500); // Description Column
+  sheet.getRange(2, 8, sheet.getLastRow() - 1, 2).setWrap(true);
+}
