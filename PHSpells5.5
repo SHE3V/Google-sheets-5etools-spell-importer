@@ -1,63 +1,81 @@
-function importPHSpells() {
-  const url = "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/refs/heads/main/data/spells/spells-phb.json";
-  const response = UrlFetchApp.fetch(url);
-  const json = JSON.parse(response.getContentText());
-  const data = json.spell; 
+function import5etoolspells() {
+  const sources = [
+    { name: "PHB", url: "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/refs/heads/main/data/spells/spells-phb.json" },
+    { name: "XGE", url: "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/refs/heads/main/data/spells/spells-xge.json" },
+    { name: "TCE", url: "https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/refs/heads/main/data/spells/spells-tce.json" }
+  ];
 
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   
-  // We clear only the data area to preserve any specific sheet-wide formatting
+  // Preserve existing "Learned" checkboxes by only clearing the data, or clear all to reset
   sheet.clearContents();
 
-  // Headers - Added "Learned" as the first column
-  const headers = ["Learned", "Name", "Level", "School", "Casting Time", "Range", "Duration", "Components", "Material Details", "Description"];
+  // Headers - Added "Source"
+  const headers = ["Learned", "Name", "Source", "Level", "School", "Casting Time", "Range", "Duration", "Components", "Material Details", "Description"];
   sheet.appendRow(headers);
 
-  const rows = data.map(spell => {
-    // 1. Core Mechanics
-    const time = spell.time ? `${spell.time[0].number} ${spell.time[0].unit}` : "N/A";
-    
-    let range = "Special";
-    if (spell.range) {
-      if (spell.range.type === "self") range = "Self";
-      else if (spell.range.distance) range = `${spell.range.distance.amount} ${spell.range.distance.type}`;
-      else range = spell.range.type;
+  let allRows = [];
+
+  sources.forEach(source => {
+    try {
+      const response = UrlFetchApp.fetch(source.url);
+      const json = JSON.parse(response.getContentText());
+      const spells = json.spell;
+
+      const bookRows = spells.map(spell => {
+        // Casting Time
+        const time = spell.time ? `${spell.time[0].number} ${spell.time[0].unit}` : "N/A";
+        
+        // Range
+        let range = "Special";
+        if (spell.range) {
+          if (spell.range.type === "self") range = "Self";
+          else if (spell.range.distance) range = `${spell.range.distance.amount} ${spell.range.distance.type}`;
+          else range = spell.range.type;
+        }
+
+        // Duration
+        let duration = "Instantaneous";
+        if (spell.duration && spell.duration[0]) {
+          const d = spell.duration[0];
+          if (d.type !== "instant") {
+            duration = d.amount ? `${d.amount} ${d.unit}` : d.type;
+            if (d.concentration) duration = "Conc., " + duration;
+          }
+        }
+
+        // Components & Materials
+        const comps = spell.components ? Object.keys(spell.components).join(", ").toUpperCase() : "NONE";
+        let materialDetails = "";
+        if (spell.components && spell.components.m) {
+          materialDetails = typeof spell.components.m === 'object' ? (spell.components.m.text || "") : spell.components.m;
+          if (spell.components.m.consume) materialDetails += " (CONSUMED)";
+        }
+
+        // Clean Description
+        let desc = spell.entries ? spell.entries.join("\n\n") : "";
+        desc = desc.replace(/\{@[a-z]+ ([^}]+)\}/g, '$1'); 
+
+        return ["", spell.name, source.name, spell.level, spell.school, time, range, duration, comps, materialDetails, desc];
+      });
+
+      allRows = allRows.concat(bookRows);
+    } catch (e) {
+      Logger.log("Error loading " + source.name + ": " + e);
     }
-
-    let duration = "Instantaneous";
-    if (spell.duration && spell.duration[0]) {
-      const d = spell.duration[0];
-      if (d.type !== "instant") {
-        duration = d.amount ? `${d.amount} ${d.unit}` : d.type;
-        if (d.concentration) duration = "Conc., " + duration;
-      }
-    }
-
-    // 2. Components & Materials
-    const comps = spell.components ? Object.keys(spell.components).join(", ").toUpperCase() : "NONE";
-    let materialDetails = "";
-    if (spell.components && spell.components.m) {
-      materialDetails = typeof spell.components.m === 'object' ? (spell.components.m.text || "") : spell.components.m;
-      if (spell.components.m.consume) materialDetails += " (CONSUMED)";
-    }
-
-    // 3. Clean Description
-    let desc = spell.entries ? spell.entries.join("\n\n") : "";
-    desc = desc.replace(/\{@[a-z]+ ([^}]+)\}/g, '$1'); 
-
-    // Return the row, leaving the first index empty for the checkbox
-    return ["", spell.name, spell.level, spell.school, time, range, duration, comps, materialDetails, desc];
   });
 
-  sheet.getRange(2, 1, rows.length, 10).setValues(rows);
-  
-  // Apply Checkboxes to Column A
-  const checkboxRange = sheet.getRange(2, 1, rows.length, 1);
-  checkboxRange.insertCheckboxes();
+  // Sort all spells alphabetically by Name (Column B)
+  allRows.sort((a, b) => a[1].localeCompare(b[1]));
 
-  // Aesthetic Formatting
-  sheet.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground("#4C0000").setFontColor("#FFFFFF");
-  sheet.setColumnWidth(1, 70);   // Checkbox column width
-  sheet.setColumnWidth(10, 500); // Description column width
-  sheet.getRange(2, 10, sheet.getLastRow() - 1, 1).setWrap(true);
+  // Paste data and insert checkboxes
+  if (allRows.length > 0) {
+    sheet.getRange(2, 1, allRows.length, 11).setValues(allRows);
+    sheet.getRange(2, 1, allRows.length, 1).insertCheckboxes();
+  }
+
+  // Formatting
+  sheet.getRange(1, 1, 1, 11).setFontWeight("bold").setBackground("#4C0000").setFontColor("#FFFFFF");
+  sheet.setColumnWidth(11, 500); 
+  sheet.getRange(2, 11, sheet.getLastRow() - 1, 1).setWrap(true);
 }
