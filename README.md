@@ -1,0 +1,1 @@
+For spell Importer: create a new sheet tab in google sheets, open app scripts, paste code into new empty script, save and click run. Same process for creating the known and prepared sheets exept you do not need to open a new sheet as it will create two new named sheets on the open document
