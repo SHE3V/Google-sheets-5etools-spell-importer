@@ -34,12 +34,18 @@ function import5etoolspells() {
           else range = spell.range.type;
         }
 
-        // Duration
+        // Duration Fix
         let duration = "Instantaneous";
         if (spell.duration && spell.duration[0]) {
           const d = spell.duration[0];
-          if (d.type !== "instant") {
-            duration = d.amount ? `${d.amount} ${d.unit}` : d.type;
+          
+          if (d.type === "timed" && d.duration) {
+            // Correctly access the nested 'amount' and 'type'
+            duration = `${d.duration.amount} ${d.duration.type}`;
+            if (d.concentration) duration = "Conc., " + duration;
+          } else if (d.type !== "instant") {
+            // Handles "permanent", "special", or "until dispelled"
+            duration = d.type;
             if (d.concentration) duration = "Conc., " + duration;
           }
         }
