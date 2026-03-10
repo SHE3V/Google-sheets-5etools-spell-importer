@@ -1,0 +1,68 @@
+/**
+ * Aligned with Master Sheet Columns: A(Learned), B(Name), C(Source), D(Level), E(School)...
+ */
+function createWizardSpellbook() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // --- USER SETUP: Change this to the exact name of your master spell sheet tab ---
+  const SOURCE_SHEET_NAME = "Master Spell List"; 
+  // -------------------------------------------------------------------------------------
+
+  const sourceSheet = ss.getSheetByName(SOURCE_SHEET_NAME);
+  if (!sourceSheet) {
+    SpreadsheetApp.getUi().alert("Master sheet '" + SOURCE_SHEET_NAME + "' not found.");
+    return;
+  }
+
+  const COLORS = {
+    PARCHMENT: "#fdf5e6",   // Slightly brighter aged paper
+    INK: "#2c1b18",         // Dark brown ink
+    ACCENT: "#8b0000",      // Blood/Dried ink red
+    BORDER: "#4a3728"       // Leather binding brown
+  };
+
+  const sheetsToCreate = ["Known Spells", "Prepared Spells"];
+  const headers = ["Prep", "Name", "Source", "Level", "School", "Time", "Range", "Duration", "Comp.", "Materials", "Description"];
+
+  sheetsToCreate.forEach((name, index) => {
+    let sheet = ss.getSheetByName(name);
+    if (sheet) ss.deleteSheet(sheet);
+    sheet = ss.insertSheet(name);
+    sheet.setHiddenGridlines(true);
+    
+    // Global Styles
+    sheet.getRange("A1:Z1000").setBackground(COLORS.PARCHMENT).setFontColor(COLORS.INK).setFontFamily("Crimson Text");
+    
+    // Title
+    sheet.getRange("B2:K2").merge().setValue(name.toUpperCase()).setFontSize(22).setFontWeight("bold").setFontColor(COLORS.ACCENT).setHorizontalAlignment("center");
+
+    // Header Row
+    const headerRange = sheet.getRange(4, 1, 1, headers.length);
+    headerRange.setValues([headers]).setBackground(COLORS.BORDER).setFontColor(COLORS.PARCHMENT).setFontWeight("bold");
+
+    if (index === 0) { // LEARNT SPELLS
+      sheet.getRange("A5:A200").insertCheckboxes();
+      // Logic: Pull columns B through K where Column A (Learned) is TRUE
+      sheet.getRange("B5").setFormula(`=IFERROR(QUERY('${SOURCE_SHEET_NAME}'!A2:K, "select B, C, D, E, F, G, H, I, J, K where A = TRUE", 0), "Waiting for discovery...")`);
+    } else { // PREPARED SPELLS
+      // Logic: Pull columns B through K where Learnt Spells Column A (Prep) is TRUE
+      sheet.getRange("B5").setFormula(`=IFERROR(QUERY('Learnt Spells'!A5:K, "select B, C, D, E, F, G, H, I, J, K where A = TRUE", 0), "No spells prepared for this ritual.")`);
+    }
+
+    // Formatting Column Widths to match your screenshot layout
+    sheet.setColumnWidth(1, 45);   // Checkbox
+    sheet.setColumnWidth(2, 180);  // Name
+    sheet.setColumnWidth(3, 60);   // Source
+    sheet.setColumnWidth(4, 50);   // Level
+    sheet.setColumnWidth(5, 50);   // School
+    sheet.setColumnWidth(11, 450); // Description (Wide)
+    
+    // Description Wrapping
+    sheet.getRange(5, 11, 200, 1).setWrap(true).setFontSize(9).setVerticalAlignment("top");
+    
+    // Aesthetic Borders
+    sheet.getRange(4, 1, 200, 11).setBorder(true, true, true, true, true, true, COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID);
+  });
+
+  SpreadsheetApp.getUi().alert("The Spellbook is manifest.");
+}
